@@ -1,0 +1,3 @@
+[submodule "WizFi360Drv"]
+	path = WizFi360Drv
+	url = https://github.com/cozajeden/WizFi360Drv.git
