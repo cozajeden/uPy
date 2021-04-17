@@ -2,18 +2,18 @@ from array import array
 import math as m
 
 class Kinematics:
-    def __init__(self, a0, a1, a2, a3):
-        self.a     = array('f', (a0, a1, a2, a3)) # lengths
-        self.angle = array('f', (0, 0, 0, 0)) # angles
-        self.pos   = array('f', (0, 0, 0))      # X, Y, Z
+    def __init__(self, a):
+        self.a     = array('f', a)                # (a0, a1, a2, a3) - lengths
+        self.angle = array('f', (0, 0, 0, 0))     # angles
+        self.pos   = array('f', (0, 0, 0))        # X, Y, Z
         
     def inverse(x, y, z):
         for i, pos in enumerate((x,y,z)):
             self.pos[i] = pos
-        self.angle[0] = m.atan(y/x)
+        self.angle[0] = m.atan(self.pos[1]/self.pos[0])
         x  -= self.a[3]*m.cos(self.angle[0])
         y  -= self.a[3]*m.cos(self.angle[0])
-        r1 = m.sqrt(x**2 + y**2)
+        r1 = m.sqrt(self.pos[0]**2 + self.pos[1]**2)
         r2 = z - self.a[0]
         phi2 = m.atan(r2/r1)
         r3 = m.sqrt(r1**2 + r2**2)
