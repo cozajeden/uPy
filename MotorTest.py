@@ -3,7 +3,8 @@ from time import sleep
 from joyTest import Joy
 import uasyncio as asyncio
 from queue import Queue
-from test3 import core1
+from network import start_listening
+import WizFi360Drv.commands as cmd
 #1
 #MIN_PWM = 1200
 #MAX_PWM = 8500
@@ -38,7 +39,7 @@ async def loop(pin, _min, _max, get, dt):
         await asyncio.sleep(dt)
 
 def motor(pin, _min, _max, dt):
-    queue = Queue()
+    queue = Queue(5)
     asyncio.create_task(loop(pin, _min, _max, queue.get, dt))
     return queue.put
 
@@ -55,19 +56,73 @@ class Button:
     async def open_close(self, state, m4):
         await m4((None, (state)))
         
-async def reciver(queue):
+async def listener(queue, sendQ):
+    clients = {}
     while True:
-        print(await queue.get())
-
-
+        msg = await queue.get()
+        msg = msg[:-2]
+        if len(msg) > 0:
+            if msg[2:] == b'CONNECT':
+                if msg[0] not in clients:
+                    clients[msg[0]] = Client(int(msg[0]), queue)
+            if msg[:4] == b'+IPD':
+                msg = msg[5:]
+                #print(msg)
+                msg = 'Love You!'
+                await sendQ.put(cmd.PREP_SEND_BUFF + b'0,{0}'.format(len(msg)) + cmd.EOL )
+                await sendQ.put(cmd.SEND_BUFF + b'{0}'.format(msg) + cmd.EOL )
+                print('sent')
+        
+class Client:
+    def __init__(self, id, sendQ, recvQ = Queue(5)):
+        print('[Client {0}] Connected!'.format(id))
+        self.id = id
+        self.rQ = recvQ
+        self.sQ = sendQ
+        asyncio.create_task(self.listen())
+        
+    async def get(self):
+        return await self.rQ.get()
+    
+    async def put(self, msg):
+        await self.sQ.put((self.id, msg))
+        
+    async def listen(self):
+        print('[Client {0}] Startet listening to.'.format(int(self.id)))
+        try:
+            first = True
+            length = 0
+            while True:
+                msg = await self.get()
+                print('[Client {0}] got message!',format(int(self.id)))
+                print('[client', self.id, ']', msg)
+                if msg == b'CLOSED':
+                    break
+                if msg == b'':
+                    continue
+                if first:
+                    first = False
+                    length = int(msg)
+                    print(length)
+                else:
+                    length -= len(msg)
+                if length == 0:
+                    first = True
+                    continue
+                
+        except OSError as e:
+            print('[CLIENT {0}] Lost connection! {1}'.format(self.id, str(e)))
+            
+    async def send(self, queue, msg):
+        pass
 
 #while True:
 #    pwm.duty_u16(int(MIN_PWM+(MAX_PWM*adc.read_u16()/CAP_PWM)))
 async def main():
     recvQ = Queue()
     sendQ = Queue()
-    asyncio.create_task(core1(recvQ, sendQ))
-    asyncio.create_task(reciver(recvQ))
+    asyncio.create_task(start_listening(recvQ, sendQ))
+    asyncio.create_task(listener(recvQ, sendQ))
     resolution = 4
     m1 = motor(7, 1150, 5000, 0.02)
     m2 = motor(8, 4000, 7300, 0.02)
