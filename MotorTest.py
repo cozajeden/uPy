@@ -62,20 +62,21 @@ async def listener(lock, queue, sendQ):
         msg = cmd.BUSY
         while msg == cmd.BUSY or msg == cmd.EOL or msg == cmd.ACK:
             msg = await queue.get()
-            print(msg)
+            #print(msg)
         if len(msg) > 0:
             if msg[2:] == cmd.CONNECTED: # and closed
                 if msg[0]-48 not in clients:
-                    clients[msg[0]-48] = Client(msg[0]-48, queue)
+                    clients[msg[0]-48] = Client(msg[0]-48, lock, queue)
             elif msg[:4] == b'+IPD':
-                msg = 'Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!'
+                #msg = 'Love you!!!!!!!!Love you!!!!!!!!'
                 await sendQ.put(cmd.SEND + b'0,{0}'.format(len(msg)) + cmd.EOL )
                 await sendQ.put(msg)
         await asyncio.sleep(0)
         
 class Client:
-    def __init__(self, id, sendQ, recvQ = Queue(5)):
+    def __init__(self, id, lock, sendQ, recvQ = Queue(5)):
         print('[Client {0}] Connected!'.format(id))
+        self.lock = lock
         self.id = id
         self.rQ = recvQ
         self.sQ = sendQ
@@ -109,7 +110,7 @@ class Client:
                 if length == 0:
                     first = True
                     continue
-                await asyncio.sleep(0)
+                await asyncio.sleep(0.001)
                 
         except OSError as e:
             print('[CLIENT {0}] Lost connection! {1}'.format(self.id, str(e)))
@@ -152,6 +153,6 @@ async def main():
 #        await m1((None, xPos))
 #        await m2((None, yPos))
 #        await m3((None, (adc.read_u16() >> resolution) / (CAP_PWM >> resolution)))
-        await asyncio.sleep(60)
+        await asyncio.sleep(0)
     
 asyncio.run(main())

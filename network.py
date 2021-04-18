@@ -24,9 +24,9 @@ async def sender(lock, swriter, queue):
     while True:
         swriter.write(await queue.get())
         await swriter.drain()
-        await asyncio.sleep(0.01)
+        await asyncio.sleep(0.001)
 
 async def reciver(lock, sreader, queue):
     while True:
         await queue.put(await sreader.readline())
-        await asyncio.sleep(0)
+        await asyncio.sleep(0.001)
