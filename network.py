@@ -5,26 +5,28 @@ from queue import Queue
 from machine import UART
 from SSIDPASS import *
 
-
+ 
 
 async def schedule(callback, time, *args, **kwargs):
     await asyncio.sleep_ms(time)
     callback(*args, **kwargs)
 
-async def start_listening(recQueue = Queue(), sndQueue = Queue()):
+async def start_listening(lock, recQueue = Queue(), sndQueue = Queue()):
     uart = UART(1)
     wifi = Socket(uart)
     wifi.init(Socket.STA, (SSID, PASS))
     swriter, sreader = wifi.listen(3000)
     #swriter, sreader = wifi.bind('192.168.8.100', 3000)
-    asyncio.create_task(reciver(sreader, recQueue))
-    asyncio.create_task(sender(swriter, sndQueue))
+    asyncio.create_task(reciver(lock, sreader, recQueue))
+    asyncio.create_task(sender(lock, swriter, sndQueue))
           
-async def sender(swriter, queue):
+async def sender(lock, swriter, queue):
     while True:
         swriter.write(await queue.get())
         await swriter.drain()
+        await asyncio.sleep(0.01)
 
-async def reciver(sreader, queue):
+async def reciver(lock, sreader, queue):
     while True:
         await queue.put(await sreader.readline())
+        await asyncio.sleep(0)

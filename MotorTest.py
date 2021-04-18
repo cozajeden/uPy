@@ -56,22 +56,22 @@ class Button:
     async def open_close(self, state, m4):
         await m4((None, (state)))
         
-async def listener(queue, sendQ):
+async def listener(lock, queue, sendQ):
     clients = {}
     while True:
-        msg = await queue.get()
-        msg = msg[:-2]
+        msg = cmd.BUSY
+        while msg == cmd.BUSY or msg == cmd.EOL or msg == cmd.ACK:
+            msg = await queue.get()
+            print(msg)
         if len(msg) > 0:
-            if msg[2:] == b'CONNECT':
-                if msg[0] not in clients:
-                    clients[msg[0]] = Client(int(msg[0]), queue)
-            if msg[:4] == b'+IPD':
-                msg = msg[5:]
-                #print(msg)
-                msg = 'Love You!'
-                await sendQ.put(cmd.PREP_SEND_BUFF + b'0,{0}'.format(len(msg)) + cmd.EOL )
-                await sendQ.put(cmd.SEND_BUFF + b'{0}'.format(msg) + cmd.EOL )
-                print('sent')
+            if msg[2:] == cmd.CONNECTED: # and closed
+                if msg[0]-48 not in clients:
+                    clients[msg[0]-48] = Client(msg[0]-48, queue)
+            elif msg[:4] == b'+IPD':
+                msg = 'Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!Love you!!!!!!!!'
+                await sendQ.put(cmd.SEND + b'0,{0}'.format(len(msg)) + cmd.EOL )
+                await sendQ.put(msg)
+        await asyncio.sleep(0)
         
 class Client:
     def __init__(self, id, sendQ, recvQ = Queue(5)):
@@ -79,7 +79,7 @@ class Client:
         self.id = id
         self.rQ = recvQ
         self.sQ = sendQ
-        asyncio.create_task(self.listen())
+        #asyncio.create_task(self.listen())
         
     async def get(self):
         return await self.rQ.get()
@@ -109,6 +109,7 @@ class Client:
                 if length == 0:
                     first = True
                     continue
+                await asyncio.sleep(0)
                 
         except OSError as e:
             print('[CLIENT {0}] Lost connection! {1}'.format(self.id, str(e)))
@@ -119,37 +120,38 @@ class Client:
 #while True:
 #    pwm.duty_u16(int(MIN_PWM+(MAX_PWM*adc.read_u16()/CAP_PWM)))
 async def main():
-    recvQ = Queue()
-    sendQ = Queue()
-    asyncio.create_task(start_listening(recvQ, sendQ))
-    asyncio.create_task(listener(recvQ, sendQ))
-    resolution = 4
-    m1 = motor(7, 1150, 5000, 0.02)
-    m2 = motor(8, 4000, 7300, 0.02)
-    m3 = motor(6, 1200, 8500, 0.02)
-    button = Button(9, 1150, 5500, 0.02)
-    joy = Joy(26, 27, 22, 0, button.button_callback, resolution)
-    xPos = 0.51
-    yPos = 0.51
-    
+    lock = asyncio.Lock()
+    recvQ = Queue(3)
+    sendQ = Queue(3)
+    asyncio.create_task(start_listening(lock, recvQ, sendQ))
+    asyncio.create_task(listener(lock, recvQ, sendQ))
+#    resolution = 4
+#    m1 = motor(7, 1150, 5000, 0.02)
+#    m2 = motor(8, 4000, 7300, 0.02)
+#    m3 = motor(6, 1200, 8500, 0.02)
+#   button = Button(9, 1150, 5500, 0.02)
+#    joy = Joy(26, 27, 22, 0, button.button_callback, resolution)
+#    xPos = 0.51
+#    yPos = 0.51
+#    
     while True:
-        pos = joy.getxy()
-        if  pos[0] < 0.49 or pos[0] > 0.51:
-            xPos += (pos[0] - 0.5)/50
-        if pos[1] < 0.49 or pos[1] > 0.51:
-            yPos += (pos[1] - 0.5)/50
-        if xPos > 1:
-            xPos = 1
-        elif xPos < 0:
-            xPos = 0
-        if yPos > 1:
-            yPos = 1
-        elif yPos < 0:
-            yPos = 0
-        
-        await m1((None, xPos))
-        await m2((None, yPos))
-        await m3((None, (adc.read_u16() >> resolution) / (CAP_PWM >> resolution)))
-        await asyncio.sleep(0.02)
+#        pos = joy.getxy()
+#        if  pos[0] < 0.49 or pos[0] > 0.51:
+#            xPos += (pos[0] - 0.5)/50
+#        if pos[1] < 0.49 or pos[1] > 0.51:
+#            yPos += (pos[1] - 0.5)/50
+#        if xPos > 1:
+#            xPos = 1
+#        elif xPos < 0:
+#            xPos = 0
+#        if yPos > 1:
+#            yPos = 1
+#        elif yPos < 0:
+#            yPos = 0
+#        
+#        await m1((None, xPos))
+#        await m2((None, yPos))
+#        await m3((None, (adc.read_u16() >> resolution) / (CAP_PWM >> resolution)))
+        await asyncio.sleep(60)
     
 asyncio.run(main())
