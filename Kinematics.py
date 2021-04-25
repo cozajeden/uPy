@@ -1,26 +1,54 @@
 from array import array
 import math as m
+from machine import Pin, PWM
+from ucollections import namedtuple
+from queue import Queue
+import uasyncio as asyncio
 
+MotorTuple = namedtuple('Motor',('minimum', 'maximum', 'minAngle', 'maxAngle', 'zero', 'current', 'pwm', 'duty_u16'))
+
+async def schedule(callback, time, *args, **kwargs):
+    await asyncio.sleep_ms(time)
+    callback(*args, **kwargs)
+    
 class Kinematics:
-    def __init__(self, a):
-        self.a     = array('f', a)                # (a0, a1, a2, a3) - lengths
-        self.angle = array('f', (0, 0, 0, 0))     # angles
-        self.pos   = array('f', (0, 0, 0))        # X, Y, Z
+    def __init__(self):
+        self.motors = []
+        self.storedKMSG = []
         
-    def inverse(x, y, z):
-        for i, pos in enumerate((x,y,z)):
-            self.pos[i] = pos
-        self.angle[0] = m.atan(self.pos[1]/self.pos[0])
-        x  -= self.a[3]*m.cos(self.angle[0])
-        y  -= self.a[3]*m.cos(self.angle[0])
-        r1 = m.sqrt(self.pos[0]**2 + self.pos[1]**2)
-        r2 = z - self.a[0]
-        phi2 = m.atan(r2/r1)
-        r3 = m.sqrt(r1**2 + r2**2)
-        phi1 = m.acos((self.a[2]**2 - self.a[1]**2 - r3**2)/(-2*self.a[1]*r3))
-        self.angle[1] = phi1 + phi2
-        self.angle[2] = m.acos((r3**2 - self.a[1]**2 - self.a[2]**2)/(-2*self.a[1]*self.a[2]))
-        return self.angle
+    def command(self, msg):
+        if msg[0] == 'L':
+            current = self.motors[0]['current'] + int(msg[1])
+            self.motors[0]['duty_u16'](current)
+            self.motors[0]['current'] = current
+            return str(current) + '\n'
         
-    def forward(a0, a1, a2):
-        return self.pos
+    def pwm_from_angle(self, minimum, maximum, minAngle, maxAngle, angle):
+        angleRange = maxAngle - minAngle
+        pwmRange = maximum - minimum
+        anglePos = angle - minAngle
+        pwmPos = int(pwmRange*anglePos/angleRange) + minimum
+        return pwmPos
+
+    def create_motor(self, minimum, maximum, minAngle, maxAngle, pin):
+        pwm =  PWM(Pin(pin))
+        pwm.freq(50)
+        center = self.pwm_from_angle(minimum, maximum, minAngle, maxAngle, 0)
+        self.motors.append({
+            'minimum':minimum,
+            'maximum':maximum,
+            'minAngle':minAngle,
+            'maxAngle':maxAngle,
+            'current':center,
+            'currentAngle':0.,
+            'pwm':pwm,
+            'duty_u16':pwm.duty_u16
+            })
+        self.motors[-1]['duty_u16'](center)
+        
+async def start_kinematics():
+    kinematics = Kinematics()
+    kinematics.create_motor(900, 10000, 0, 3.14, 1.5, 6)
+    while True:
+        print('a')
+        await asyncio.sleep(0.5)

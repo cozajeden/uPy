@@ -1,10 +1,12 @@
 from machine import Pin, PWM, ADC
 from time import sleep
 from joyTest import Joy
-import uasyncio as asyncio
+import uasyncio as asyncio, gc
 from queue import Queue
-from network import start_listening
+from network import start_listening, Client
 import WizFi360Drv.commands as cmd
+from kinematics import Kinematics
+import math
 #1
 #MIN_PWM = 1200
 #MAX_PWM = 8500
@@ -21,11 +23,7 @@ CAP_PWM = 65025
 #pwm = PWM(Pin(9))
 #pwm.freq(50)
 adc = ADC(Pin(28))
-
-
-async def schedule(callback, time, *args, **kwargs):
-    await asyncio.sleep_ms(time)
-    callback(*args, **kwargs)
+clients = {}
 
 async def loop(pin, _min, _max, get, dt):
     pwm =  PWM(Pin(pin))
@@ -56,103 +54,48 @@ class Button:
     async def open_close(self, state, m4):
         await m4((None, (state)))
         
-async def listener(lock, queue, sendQ):
-    clients = {}
+async def handle_message(msg, sendQ, kinematics):
+    if len(msg) > 0:
+        if msg[2:] == cmd.CONNECTED:
+            if msg[0]-48 not in clients.keys():
+                clients[msg[0]-48] = Client(msg[0]-48, None, sendQ)
+        elif msg[2:] == cmd.CLOSED:
+            if msg[0]-48 in clients:
+                clients.pop(msg[0]-48)
+                print('[CLIENT {0}] DISCONNECTED!'.format(msg[0]-48))
+                gc.collect()
+        elif msg[:4] == b'+IPD':
+            client = msg[5]-48
+            msg = str(msg)
+            msg = msg[msg.find(':')+1:-3]
+            if msg[0] == 'K':
+                if msg[1:] == 'END':
+                    response = kinematics.command(kinematics.storedKMSG)
+                    kinematics.storedKMSG = []
+                    await clients[client].send(response)
+                else:
+                    kinematics.storedKMSG.append(msg[1:])
+        
+async def listener(lock, queue, sendQ, kinematics):
     while True:
         msg = cmd.BUSY
         while msg == cmd.BUSY or msg == cmd.EOL or msg == cmd.ACK:
             msg = await queue.get()
-            #print(msg)
-        if len(msg) > 0:
-            if msg[2:] == cmd.CONNECTED: # and closed
-                if msg[0]-48 not in clients:
-                    clients[msg[0]-48] = Client(msg[0]-48, lock, queue)
-            elif msg[:4] == b'+IPD':
-                #msg = 'Love you!!!!!!!!Love you!!!!!!!!'
-                await sendQ.put(cmd.SEND + b'0,{0}'.format(len(msg)) + cmd.EOL )
-                await sendQ.put(msg)
-        await asyncio.sleep(0)
-        
-class Client:
-    def __init__(self, id, lock, sendQ, recvQ = Queue(5)):
-        print('[Client {0}] Connected!'.format(id))
-        self.lock = lock
-        self.id = id
-        self.rQ = recvQ
-        self.sQ = sendQ
-        #asyncio.create_task(self.listen())
-        
-    async def get(self):
-        return await self.rQ.get()
-    
-    async def put(self, msg):
-        await self.sQ.put((self.id, msg))
-        
-    async def listen(self):
-        print('[Client {0}] Startet listening to.'.format(int(self.id)))
-        try:
-            first = True
-            length = 0
-            while True:
-                msg = await self.get()
-                print('[Client {0}] got message!',format(int(self.id)))
-                print('[client', self.id, ']', msg)
-                if msg == b'CLOSED':
-                    break
-                if msg == b'':
-                    continue
-                if first:
-                    first = False
-                    length = int(msg)
-                    print(length)
-                else:
-                    length -= len(msg)
-                if length == 0:
-                    first = True
-                    continue
-                await asyncio.sleep(0.001)
-                
-        except OSError as e:
-            print('[CLIENT {0}] Lost connection! {1}'.format(self.id, str(e)))
-            
-    async def send(self, queue, msg):
-        pass
+        asyncio.create_task(handle_message(msg, sendQ, kinematics))
 
-#while True:
-#    pwm.duty_u16(int(MIN_PWM+(MAX_PWM*adc.read_u16()/CAP_PWM)))
 async def main():
+    kinematics = Kinematics()
+    kinematics.create_motor(1200, 8500, -math.pi*0.25, math.pi*0.25, 6)
+    kinematics.create_motor(2800, 6500, -math.pi*(35/180), math.pi*(55/180), 7)
+    kinematics.create_motor(5900, 8400, -math.pi*(65/180), math.pi*(10/180), 8)
+    kinematics.create_motor(1200, 5500, -math.pi, math.pi, 9)
     lock = asyncio.Lock()
-    recvQ = Queue(3)
-    sendQ = Queue(3)
+    recvQ = Queue(5)
+    sendQ = Queue(5)
     asyncio.create_task(start_listening(lock, recvQ, sendQ))
-    asyncio.create_task(listener(lock, recvQ, sendQ))
-#    resolution = 4
-#    m1 = motor(7, 1150, 5000, 0.02)
-#    m2 = motor(8, 4000, 7300, 0.02)
-#    m3 = motor(6, 1200, 8500, 0.02)
-#   button = Button(9, 1150, 5500, 0.02)
-#    joy = Joy(26, 27, 22, 0, button.button_callback, resolution)
-#    xPos = 0.51
-#    yPos = 0.51
-#    
+    asyncio.create_task(listener(lock, recvQ, sendQ, kinematics))
     while True:
-#        pos = joy.getxy()
-#        if  pos[0] < 0.49 or pos[0] > 0.51:
-#            xPos += (pos[0] - 0.5)/50
-#        if pos[1] < 0.49 or pos[1] > 0.51:
-#            yPos += (pos[1] - 0.5)/50
-#        if xPos > 1:
-#            xPos = 1
-#        elif xPos < 0:
-#            xPos = 0
-#        if yPos > 1:
-#            yPos = 1
-#        elif yPos < 0:
-#            yPos = 0
-#        
-#        await m1((None, xPos))
-#        await m2((None, yPos))
-#        await m3((None, (adc.read_u16() >> resolution) / (CAP_PWM >> resolution)))
         await asyncio.sleep(0)
+
     
 asyncio.run(main())

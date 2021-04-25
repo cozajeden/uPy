@@ -4,8 +4,18 @@ from WizFi360Drv.socket import Socket
 from queue import Queue
 from machine import UART
 from SSIDPASS import *
-
- 
+  
+class Client:
+    def __init__(self, id, lock, sendQ, recvQ = Queue(5)):
+        print('[CLIENT {0}] Connected!'.format(id))
+        self.lock = lock
+        self.id = id
+        self.rQ = recvQ
+        self.sQ = sendQ
+        
+    async def send(self, msg):
+        await self.sQ.put(cmd.SEND + b'{0},{1}'.format(self.id, len(msg)) + cmd.EOL)
+        await self.sQ.put(msg)
 
 async def schedule(callback, time, *args, **kwargs):
     await asyncio.sleep_ms(time)
