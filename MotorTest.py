@@ -1,4 +1,4 @@
-from machine import Pin, PWM, ADC
+from machine import Pin, PWM
 from time import sleep
 from joyTest import Joy
 import uasyncio as asyncio, gc
@@ -31,7 +31,7 @@ async def handle_message(msg, sendQ, kinematics):
                 else:
                     kinematics.storedKMSG.append(msg[1:])
         
-async def listener(queue, sendQ, kinematics):
+async def listener(lock, queue, sendQ, kinematics):
     while True:
         msg = cmd.BUSY
         while msg == cmd.BUSY or msg == cmd.EOL or msg == cmd.ACK:
@@ -39,11 +39,12 @@ async def listener(queue, sendQ, kinematics):
         asyncio.create_task(handle_message(msg, sendQ, kinematics))
 
 async def main():
-    kinematics = Kinematics()
+    kinematics = Kinematics(100., 130., 150., 90.)
+    lock = asyncio.Lock()
     recvQ = Queue(5)
     sendQ = Queue(5)
-    asyncio.create_task(start_listening(recvQ, sendQ))
-    asyncio.create_task(listener(recvQ, sendQ, kinematics))
+    asyncio.create_task(start_listening(lock, recvQ, sendQ))
+    asyncio.create_task(listener(lock, recvQ, sendQ, kinematics))
     while True:
         await asyncio.sleep(0)
 
