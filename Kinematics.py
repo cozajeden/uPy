@@ -4,6 +4,7 @@ from machine import Pin, PWM
 from ucollections import namedtuple
 from queue import Queue
 import uasyncio as asyncio
+import math
 
 MotorTuple = namedtuple('Motor',('minimum', 'maximum', 'minAngle', 'maxAngle', 'zero', 'current', 'pwm', 'duty_u16'))
 
@@ -15,6 +16,10 @@ class Kinematics:
     def __init__(self):
         self.motors = []
         self.storedKMSG = []
+        self.create_motor(1200, 8500, -math.pi*0.25, math.pi*0.25, 6)
+        self.create_motor(2800, 6500, -math.pi*(35/180), math.pi*(55/180), 7)
+        self.create_motor(5900, 8400, -math.pi*(65/180), math.pi*(10/180), 8)
+        self.create_motor(1200, 5500, -math.pi, math.pi, 9)
         
     def command(self, msg):
         if msg[0] == 'L':
